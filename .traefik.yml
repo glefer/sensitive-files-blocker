@@ -1,0 +1,12 @@
+displayName: Sensitive files blocker
+type: middleware
+iconPath: .assets/icon.webp
+
+import: github.com/glefer/sensitive-files-blocker
+
+summary: 'Middleware plugin to block sensitive files from being accessed and display a custom error page.'
+
+testData:
+  files:
+    - ^.env$
+    - ^.git
