@@ -12,7 +12,8 @@ import (
 // Config is a struct that holds the configuration for the SensitiveFileBlocker.
 // It contains a slice of strings representing the names of the files to be blocked.
 type Config struct {
-	Files []string `json:"blockedFiles,omitempty"`
+	Files    []string       `json:"blockedFiles,omitempty"`
+	Template TemplateConfig `yaml:"template"`
 }
 
 // CreateConfig creates a new Config struct with default values.
@@ -20,6 +21,16 @@ type Config struct {
 func CreateConfig() *Config {
 	return &Config{
 		Files: []string{},
+		Template: TemplateConfig{
+			Enabled: true,
+			HTML:    HTMLTemplate,
+			CSS:     CSSTemplate,
+			Vars: map[string]interface{}{
+				"Title":   "403 Forbidden",
+				"Heading": "403 Forbidden",
+				"Body":    "You do not have permission to access this document.",
+			},
+		},
 	}
 }
 
@@ -28,9 +39,10 @@ func CreateConfig() *Config {
 // It also contains the next http.Handler in the chain.
 // The name field is used to identify the middleware in the logs.
 type SensitiveFileBlocker struct {
-	next  http.Handler
-	files []string
-	name  string
+	next     http.Handler
+	files    []string
+	name     string
+	renderer Renderer
 }
 
 var errEmptyFileList = errors.New("files list cannot be empty")
@@ -42,10 +54,25 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		return nil, errEmptyFileList
 	}
 
+	var renderer Renderer
+
+	if config.Template.Enabled {
+		var err error
+		renderer, err = NewTemplateRenderer(config.Template)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		renderer = &DefaultRenderer{
+			Body: "You do not have permission to access this document.",
+		}
+	}
+
 	return &SensitiveFileBlocker{
-		files: config.Files,
-		next:  next,
-		name:  name,
+		files:    config.Files,
+		next:     next,
+		name:     name,
+		renderer: renderer,
 	}, nil
 }
 
@@ -54,7 +81,10 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 func (sfb *SensitiveFileBlocker) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	for _, blockedFile := range sfb.files {
 		if matched, _ := regexp.MatchString(blockedFile, strings.TrimLeft(req.URL.Path, "/")); matched {
-			http.Error(rw, "You do not have permission to access this document.", http.StatusForbidden)
+			err := sfb.renderer.Render(rw, req)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 	}
