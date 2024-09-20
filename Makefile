@@ -10,6 +10,9 @@ lint:
 gofumt:
 	gofumpt -l -w .
 
+cgi:
+	gci write -s standard -s default .
+
 test:
 	go test -v -cover ./...
 

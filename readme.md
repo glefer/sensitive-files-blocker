@@ -11,16 +11,22 @@ This plugin allows Traefik users to block access to sensitive files and director
 ![Go Version](https://img.shields.io/github/go-mod/go-version/glefer/sensitive-files-blocker?style=flat-square)
 ![Latest Release](https://img.shields.io/github/v/release/glefer/sensitive-files-blocker?style=flat-square&sort=semver)
 
-## Installation
-It is possible to install the [plugin locally](https://traefik.io/blog/using-private-plugins-in-traefik-proxy-2-5/) or to install it through [Traefik Pilot](https://pilot.traefik.io/plugins).
+## Preview
+
+![Preview](./.assets/preview.png)
 
 ## Features
 * Blocks predefined sensitive files.
 * Customizable list of files or directories to block.
-*  Lightweight and easy to install as a Traefik middleware plugin.
+* Lightweight and easy to install as a Traefik middleware plugin.
 * Flexible installation methods: via Traefik Pilot, local mode, or Docker.
+* Templating support for custom error pages.
 
-### Standard
+## Installation
+It is possible to install the [plugin locally](https://traefik.io/blog/using-private-plugins-in-traefik-proxy-2-5/) or to install it through [Traefik Pilot](https://pilot.traefik.io/plugins).
+
+
+### Traefik plugin registry
 
 This procedure will install the plugin via the [Traefik Plugin registry](https://plugins.traefik.io/install).
 
@@ -153,15 +159,65 @@ services:
 
 ```
 
+## Templating
+### Configuration
+Configure a template for blocking access to sensitive files:
+
+```yaml
+# Dynamic configuration
+http:
+  middlewares:
+    sensitive-files-blocker:
+      plugin:
+        sensitive-files-blocker:
+          files:
+          # ...
+          template:
+            enabled: true
+            css: 'body { font-family: Arial, sans-serif; } h1 { color: red; }'
+            html: '<html><head><title>{{ .Title }}</title></head><body><h1>{{ .Title }}</h1><p>{{ .Message }}</p></body></html>'
+            vars:
+              title: 'Access denied'
+              message: 'You are not allowed to access this file.'
+```
+
+### Disable Templating
+To disable templating, set the `enabled` field to `false`:
+
+```yaml
+# Dynamic configuration
+http:
+  middlewares:
+    sensitive-files-blocker:
+      plugin:
+        sensitive-files-blocker:
+          files:
+          # ...
+          template:
+            enabled: true
+            css: 'body { font-family: Arial, sans-serif; } h1 { color: red; }'
+            html: '<html><head><title>{{ .Title }}</title></head><body><h1>{{ .Title }}</h1><p>{{ .Message }}</p></body></html>'
+            vars:
+              title: 'Access denied'
+              message: 'You are not allowed to access this file.'
+```
+## Testing
+
+To run tests, you can use the following command:
+```bash
+make test
+```
+
+To run tests in yaegi mode, you can use the following command:
+```bash
+make yaegi_test
+```
+
 ## Contributing
 
 Contributions are welcome! Feel free to open issues, submit pull requests, or suggest new features.
 Testing
 
-To run tests:
-```bash
-make test
-```
 
 This will run all tests defined in main_test.go.
 
