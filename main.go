@@ -9,18 +9,18 @@ import (
 	"strings"
 )
 
-// Config is a struct that holds the configuration for the SensitiveFileBlocker.
-// It contains a slice of strings representing the names of the files to be blocked.
+// Config struct holding configuration.
 type Config struct {
-	Files    []string       `json:"blockedFiles,omitempty"`
-	Template TemplateConfig `yaml:"template"`
+	Files     []string       `json:"blockedFiles,omitempty"`
+	FileRegex []string       `json:"blockedFilesRegex,omitempty"`
+	Template  TemplateConfig `yaml:"template"`
 }
 
 // CreateConfig creates a new Config struct with default values.
-// It returns a pointer to the newly created Config struct.
 func CreateConfig() *Config {
 	return &Config{
-		Files: []string{},
+		Files:     []string{},
+		FileRegex: []string{},
 		Template: TemplateConfig{
 			Enabled: true,
 			HTML:    HTMLTemplate,
@@ -34,28 +34,44 @@ func CreateConfig() *Config {
 	}
 }
 
-// SensitiveFileBlocker is a struct that holds the configuration for the SensitiveFileBlocker.
-// It contains a slice of strings representing the names of the files to be blocked.
-// It also contains the next http.Handler in the chain.
-// The name field is used to identify the middleware in the logs.
+// SensitiveFileBlocker holds the configuration and the next http.Handler.
 type SensitiveFileBlocker struct {
-	next     http.Handler
-	files    []string
-	name     string
-	renderer Renderer
+	next       http.Handler
+	filesExact map[string]struct{}
+	filesRegex []*regexp.Regexp
+	name       string
+	renderer   Renderer
 }
 
-var errEmptyFileList = errors.New("files list cannot be empty")
+var errEmptyFileList = errors.New("files and FileRegex cannot be empty")
 
-// New creates a new SensitiveFileBlocker with the given configuration.
-// It returns a pointer to the newly created SensitiveFileBlocker and an error if the configuration is invalid.
+// New creates a new SensitiveFileBlocker with optimized matching.
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	if len(config.Files) == 0 {
+	if len(config.Files) == 0 && len(config.FileRegex) == 0 {
 		return nil, errEmptyFileList
 	}
 
-	var renderer Renderer
+	filesExact := make(map[string]struct{})
+	filesRegex := make([]*regexp.Regexp, 0, len(config.Files))
 
+	for _, file := range config.Files {
+		filesExact[file] = struct{}{}
+	}
+
+	for _, file := range config.FileRegex {
+		file = strings.TrimSpace(file)
+		if file == "" {
+			continue
+		}
+
+		re, err := regexp.Compile(file)
+		if err != nil {
+			return nil, err
+		}
+		filesRegex = append(filesRegex, re)
+	}
+
+	var renderer Renderer
 	if config.Template.Enabled {
 		var err error
 		renderer, err = NewTemplateRenderer(config.Template)
@@ -69,18 +85,33 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	}
 
 	return &SensitiveFileBlocker{
-		files:    config.Files,
-		next:     next,
-		name:     name,
-		renderer: renderer,
+		filesExact: filesExact,
+		filesRegex: filesRegex,
+		next:       next,
+		name:       name,
+		renderer:   renderer,
 	}, nil
 }
 
-// ServeHTTP blocks access to files based on the file name.
-// It checks if the file name matches any of the blocked files and returns a 403 Forbidden status code if it does.
+// ServeHTTP checks for blocked files with optimized matching.
 func (sfb *SensitiveFileBlocker) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	for _, blockedFile := range sfb.files {
-		if matched, _ := regexp.MatchString(blockedFile, strings.TrimLeft(req.URL.Path, "/")); matched {
+	path := req.URL.Path
+	if len(path) > 0 && path[0] == '/' {
+		path = path[1:]
+	}
+
+	// Exact match check
+	if _, found := sfb.filesExact[path]; found {
+		err := sfb.renderer.Render(rw, req)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Regex match check
+	for _, re := range sfb.filesRegex {
+		if re.MatchString(path) {
 			err := sfb.renderer.Render(rw, req)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)

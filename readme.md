@@ -112,12 +112,39 @@ http:
     sensitive-files-blocker:
       plugin:
         sensitive-files-blocker:
-          files:
-            - ^.env$
-            - ^.git
+		  files:
+		    - composer.json
+		    - composer.lock
+		  filesRegex:
+		    - ^.*\.env$
+		    - ^.*\.git
 ```
 
-The files field accepts a list of regex patterns representing files or directories to block. You can customize it based on the files that should be restricted from access.
+The configuration for the sensitive files blocker includes two main sections: files and filesRegex.
+
+### Files
+The files section is used to specify exact filenames that should be blocked. These filenames should be an exact match for the files you want to block. For example:
+
+```yaml
+files:
+  - composer.json
+  - composer.lock
+```
+
+In this example, composer.json and composer.lock are exact filenames. Any request to access these files will be blocked.
+
+### FilesRegex
+The filesRegex section is used to specify regular expressions that match the filenames you want to block. This allows you to block a group of files based on a pattern. For example:
+
+```yaml
+filesRegex:
+  - ^.*\.env$
+  - ^.*\.git
+```
+
+In this example, ^.*\.env$ will block any file that ends with .env, and ^.*\.git will block any file that ends with .git. The ^ symbol represents the start of the filename, the .* allows for any characters in the middle, and the $ symbol represents the end of the filename.
+
+Please note that you need to escape the . character with a backslash (\.) because . is a special character in regular expressions that matches any character. If you want to match the . character exactly, you need to escape it.
 
 ### Enable middleware for all routers
 

@@ -8,8 +8,11 @@ summary: 'Middleware plugin to block sensitive files from being accessed and dis
 
 testData:
   files:
-    - ^.env$
-    - ^.git
+    - composer.json
+    - composer.lock
+  filesRegex:
+    - ^.*\.env$
+    - ^.*\.git
   template:
     enabled: true
     css: 'body { font-family: Arial, sans-serif; } h1 { color: red; }'
