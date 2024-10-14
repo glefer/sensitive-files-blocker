@@ -112,12 +112,15 @@ http:
     sensitive-files-blocker:
       plugin:
         sensitive-files-blocker:
-		  files:
-		    - composer.json
-		    - composer.lock
-		  filesRegex:
-		    - ^.*\.env$
-		    - ^.*\.git
+          files:
+            - composer.json
+            - composer.lock
+          filesRegex:
+            - ^.*\.env$
+            - ^.*\.git
+          logs:
+            enabled: false
+            filePath: /var/log/sensitive-files-blocker.log
 ```
 
 The configuration for the sensitive files blocker includes two main sections: files and filesRegex.
@@ -142,9 +145,15 @@ filesRegex:
   - ^.*\.git
 ```
 
-In this example, ^.*\.env$ will block any file that ends with .env, and ^.*\.git will block any file that ends with .git. The ^ symbol represents the start of the filename, the .* allows for any characters in the middle, and the $ symbol represents the end of the filename.
+In this example, `^.*\.env$` will block any file that ends with .env, and `^.*\.git` will block any file that ends with .git. The ^ symbol represents the start of the filename, the .* allows for any characters in the middle, and the $ symbol represents the end of the filename.
 
 Please note that you need to escape the . character with a backslash (\.) because . is a special character in regular expressions that matches any character. If you want to match the . character exactly, you need to escape it.
+
+### Logging
+In the logs section of the Traefik plugin configuration, you can control how logs are handled for the sensitive-files-blocker middleware.
+
+* `enabled` (default: false): This parameter determines whether logging is activated. If set to true, the plugin will log all events related to blocking attempts on sensitive files. If set to false, no logs will be recorded, and log information will be suppressed.
+* `filePath`: This parameter specifies the location of the log file where the plugin will write log data when logging is enabled.
 
 ### Enable middleware for all routers
 

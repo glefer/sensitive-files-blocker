@@ -8,7 +8,7 @@ lint:
 	golangci-lint run
 
 gofumt:
-	gofumpt -l -w .
+	gofumpt -l -extra -w .
 
 cgi:
 	gci write -s standard -s default .

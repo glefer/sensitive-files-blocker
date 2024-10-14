@@ -13,6 +13,9 @@ testData:
   filesRegex:
     - ^.*\.env$
     - ^.*\.git
+  logs:
+    enabled: false
+    filePath: /var/log/sensitive-files-blocker.log
   template:
     enabled: true
     css: 'body { font-family: Arial, sans-serif; } h1 { color: red; }'
