@@ -4,6 +4,7 @@ package sensitive_files_blocker
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -14,6 +15,7 @@ type Config struct {
 	Files     []string       `json:"blockedFiles,omitempty"`
 	FileRegex []string       `json:"blockedFilesRegex,omitempty"`
 	Template  TemplateConfig `yaml:"template"`
+	Logs      LogsConfig     `yaml:"logs"`
 }
 
 // CreateConfig creates a new Config struct with default values.
@@ -21,6 +23,10 @@ func CreateConfig() *Config {
 	return &Config{
 		Files:     []string{},
 		FileRegex: []string{},
+		Logs: LogsConfig{
+			Enabled: false,
+			LogFile: "",
+		},
 		Template: TemplateConfig{
 			Enabled: true,
 			HTML:    HTMLTemplate,
@@ -41,9 +47,13 @@ type SensitiveFileBlocker struct {
 	filesRegex []*regexp.Regexp
 	name       string
 	renderer   Renderer
+	logger     Logger
 }
 
-var errEmptyFileList = errors.New("files and FileRegex cannot be empty")
+var (
+	_                io.Closer = (*SensitiveFileBlocker)(nil)
+	errEmptyFileList           = errors.New("files and FileRegex cannot be empty")
+)
 
 // New creates a new SensitiveFileBlocker with optimized matching.
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
@@ -52,7 +62,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	}
 
 	filesExact := make(map[string]struct{})
-	filesRegex := make([]*regexp.Regexp, 0, len(config.Files))
+	filesRegex := make([]*regexp.Regexp, 0, len(config.FileRegex))
 
 	for _, file := range config.Files {
 		filesExact[file] = struct{}{}
@@ -84,12 +94,24 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		}
 	}
 
+	var logger Logger
+	var err error
+	if config.Logs.Enabled {
+		logger, err = NewFileLogger(config.Logs.LogFile)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		logger = &NoopLogger{}
+	}
+
 	return &SensitiveFileBlocker{
 		filesExact: filesExact,
 		filesRegex: filesRegex,
 		next:       next,
 		name:       name,
 		renderer:   renderer,
+		logger:     logger,
 	}, nil
 }
 
@@ -103,6 +125,7 @@ func (sfb *SensitiveFileBlocker) ServeHTTP(rw http.ResponseWriter, req *http.Req
 	// Exact match check
 	if _, found := sfb.filesExact[path]; found {
 		err := sfb.renderer.Render(rw, req)
+		sfb.logger.Log("Blocked access to "+path, req.RemoteAddr)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 		}
@@ -113,6 +136,7 @@ func (sfb *SensitiveFileBlocker) ServeHTTP(rw http.ResponseWriter, req *http.Req
 	for _, re := range sfb.filesRegex {
 		if re.MatchString(path) {
 			err := sfb.renderer.Render(rw, req)
+			sfb.logger.Log("Blocked access to "+path, req.RemoteAddr)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 			}
@@ -121,4 +145,9 @@ func (sfb *SensitiveFileBlocker) ServeHTTP(rw http.ResponseWriter, req *http.Req
 	}
 
 	sfb.next.ServeHTTP(rw, req)
+}
+
+// Close the logger using the Close function when plugin is destroyed.
+func (sfb *SensitiveFileBlocker) Close() error {
+	return sfb.logger.Close()
 }

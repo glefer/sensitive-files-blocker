@@ -368,3 +368,45 @@ func TestSensitiveFileBlocker_ServeHTTP_RenderError(t *testing.T) {
 		})
 	}
 }
+
+func TestNewFileLoggerErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+		wantErr bool
+	}{
+		{
+			name:    "Expect error when logs are enabled",
+			enabled: true,
+			wantErr: true,
+		},
+		{
+			name:    "Expect no error when logs are not enabled",
+			enabled: false,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				FileRegex: []string{
+					"file.txt",
+					"^begin",
+					"end$",
+					"^all$",
+					"",
+				},
+				Logs: LogsConfig{
+					Enabled: tt.enabled,
+					LogFile: "/nonexistent_directory/test_log",
+				},
+			}
+
+			_, err := New(context.TODO(), mockHandler(), config, "TestSensitiveFileBlocker")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
